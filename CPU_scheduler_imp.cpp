@@ -1,14 +1,14 @@
-#include <iostream>
-#include <vector>
-#include <string>
-#include <queue>
 #include <algorithm>
-#include <numeric>
-#include <iomanip>
-#include <climits>
 #include <cctype>
+#include <climits>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <numeric>
+#include <queue>
 #include <sstream>
+#include <string>
+#include <vector>
 
 using namespace std;
 
@@ -28,7 +28,7 @@ struct Task {
 };
 
 struct TimelineBlock {
-    int id; // -1 represents CPU idle
+    int id;  // -1 represents CPU idle
     int start;
     int end;
 };
@@ -66,7 +66,7 @@ void computeMetrics(ExecutionReport& rep) {
         totalResp += item.rt;
     }
 
-    int count = rep.tasks.size();
+    int count = (int)rep.tasks.size();
     rep.meanWT = (count > 0) ? (totalWait / count) : 0.0;
     rep.meanTAT = (count > 0) ? (totalTurn / count) : 0.0;
     rep.meanRT = (count > 0) ? (totalResp / count) : 0.0;
@@ -84,7 +84,7 @@ ExecutionReport executeFCFS(const vector<Task>& inputs) {
     ExecutionReport rep;
     rep.algoTitle = "FCFS";
     rep.tasks = inputs;
-    int n = rep.tasks.size();
+    int n = (int)rep.tasks.size();
 
     vector<int> sequence(n);
     iota(sequence.begin(), sequence.end(), 0);
@@ -121,7 +121,7 @@ ExecutionReport executeNonPreemptive(const vector<Task>& inputs, bool usePriorit
     ExecutionReport rep;
     rep.algoTitle = usePriority ? "Priority (Non-Preemptive)" : "SJF (Non-Preemptive)";
     rep.tasks = inputs;
-    int n = rep.tasks.size();
+    int n = (int)rep.tasks.size();
 
     vector<int> order(n);
     iota(order.begin(), order.end(), 0);
@@ -173,7 +173,7 @@ ExecutionReport executeRoundRobin(const vector<Task>& inputs, int q) {
     ExecutionReport rep;
     rep.algoTitle = "Round Robin (Q=" + to_string(q) + ")";
     rep.tasks = inputs;
-    int n = rep.tasks.size();
+    int n = (int)rep.tasks.size();
 
     for (auto& item : rep.tasks) item.rem = item.bt;
 
@@ -231,7 +231,7 @@ ExecutionReport executePreemptive(const vector<Task>& inputs, bool usePriority) 
     ExecutionReport rep;
     rep.algoTitle = usePriority ? "Priority (Preemptive)" : "SRTF (Preemptive SJF)";
     rep.tasks = inputs;
-    int n = rep.tasks.size();
+    int n = (int)rep.tasks.size();
 
     for (auto& item : rep.tasks) item.rem = item.bt;
 
@@ -309,24 +309,24 @@ int getValidInteger(const string& msg, int minimum, int maximum) {
 
         raw = raw.substr(first, last - first + 1);
         bool onlyDigits = true;
-        for (char ch : raw) {
+        for (unsigned char ch : raw) {
             if (!isdigit(ch)) {
                 onlyDigits = false;
                 break;
             }
         }
 
-        if (!onlyDigits || raw.length() > 6) {
+        if (!onlyDigits || raw.length() > 9) {
             cout << "  Please enter a valid whole number.\n";
             continue;
         }
 
-        int val = stoi(raw);
+        long long val = stoll(raw);
         if (val < minimum || val > maximum) {
             cout << "  Value must be between " << minimum << " and " << maximum << ".\n";
             continue;
         }
-        return val;
+        return static_cast<int>(val);
     }
 }
 
@@ -366,7 +366,13 @@ void loadProcessesFromFile(vector<Task>& list) {
     cout << "Enter input filename (default: processes.txt): ";
     string fname;
     getline(cin, fname);
-    if (fname.empty()) fname = "processes.txt";
+    size_t first = fname.find_first_not_of(" \t\r\n");
+    size_t last = fname.find_last_not_of(" \t\r\n");
+    if (first == string::npos) {
+        fname = "processes.txt";
+    } else {
+        fname = fname.substr(first, last - first + 1);
+    }
 
     ifstream fin(fname);
     if (!fin.is_open()) {
@@ -374,29 +380,58 @@ void loadProcessesFromFile(vector<Task>& list) {
         return;
     }
 
-    list.clear();
+    vector<Task> parsed;
     string line;
-    int pid = 1;
+    int lineNum = 0;
+    int skipped = 0;
+    bool limitHit = false;
+
     while (getline(fin, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        stringstream ss(line);
-        int at, bt, pr;
-        if (ss >> at >> bt >> pr) {
-            Task t;
-            t.pid = pid++;
-            t.at = max(0, at);
-            t.bt = max(1, bt);
-            t.pr = max(1, pr);
-            t.rem = t.bt;
-            list.push_back(t);
+        lineNum++;
+        size_t b = line.find_first_not_of(" \t\r\n");
+        if (b == string::npos || line[b] == '#') continue;
+
+        if ((int)parsed.size() >= MAX_LIMIT) {
+            limitHit = true;
+            continue;
         }
+
+        stringstream ss(line.substr(b));
+        int at, bt, pr;
+        string extra;
+        if (!(ss >> at >> bt >> pr) || (ss >> extra)) {
+            cout << "  Line " << lineNum << " skipped (expected: Arrival Burst Priority).\n";
+            skipped++;
+            continue;
+        }
+        if (at < 0 || at > 999 || bt < 1 || bt > 999 || pr < 1 || pr > 99) {
+            cout << "  Line " << lineNum << " skipped (values out of range: AT 0-999, BT 1-999, PR 1-99).\n";
+            skipped++;
+            continue;
+        }
+
+        Task t;
+        t.pid = (int)parsed.size() + 1;
+        t.at = at;
+        t.bt = bt;
+        t.pr = pr;
+        t.rem = t.bt;
+        parsed.push_back(t);
     }
     fin.close();
 
-    if (list.empty()) {
+    if (parsed.empty()) {
         cout << "No valid process records found in file.\n";
-    } else {
-        cout << "Successfully read " << list.size() << " processes from " << fname << "\n";
+        return;
+    }
+
+    list = move(parsed);
+    cout << "Successfully read " << list.size() << " processes from " << fname << "\n";
+    if (limitHit) {
+        cout << "Note: Capped at maximum of " << MAX_LIMIT << " processes.\n";
+    }
+    if (skipped > 0) {
+        cout << "Skipped " << skipped << " invalid line(s).\n";
     }
 }
 
@@ -489,7 +524,9 @@ void showSimulationOutput(const ExecutionReport& res, bool saveToFile = false) {
     out << "\nAverage Waiting Time    : " << res.meanWT << "\n";
     out << "Average Turnaround Time : " << res.meanTAT << "\n";
     out << "Average Response Time   : " << res.meanRT << "\n";
-    out << "CPU Utilization         : " << setprecision(1) << res.efficiency << "%\n";
+    out << setprecision(1);
+    out << "CPU Utilization         : " << res.efficiency << "%\n";
+    out << setprecision(2);
 
     cout << out.str();
 
@@ -523,19 +560,21 @@ void runAlgorithmComparison(const vector<Task>& procs, int quantumVal, bool save
     out << "+--------------------+-----------+-----------+-----------+------------+\n";
     out << "| Algorithm          | Avg WT    | Avg TAT   | Avg RT    | CPU Util % |\n";
     out << "+--------------------+-----------+-----------+-----------+------------+\n";
-    out << fixed << setprecision(2);
+    out << fixed;
 
     int optimum = 0;
     for (int idx = 0; idx < 6; idx++) {
+        out << setprecision(2);
         out << "| " << left << setw(18) << labels[idx] << " | "
             << setw(9) << runs[idx].meanWT << " | "
             << setw(9) << runs[idx].meanTAT << " | "
-            << setw(9) << runs[idx].meanRT << " | "
-            << setw(10) << setprecision(1) << runs[idx].efficiency << " |\n";
+            << setw(9) << runs[idx].meanRT << " | ";
+        out << setprecision(1) << setw(10) << runs[idx].efficiency << " |\n";
         if (runs[idx].meanWT < runs[optimum].meanWT) {
             optimum = idx;
         }
     }
+    out << setprecision(2);
     out << "+--------------------+-----------+-----------+-----------+------------+\n";
     out << "Best algorithm (lowest waiting time): " << labels[optimum] << "\n";
 

@@ -8,7 +8,7 @@
 //                queue  (ready queue for FCFS and Round Robin)
 //
 //  Priority rule: LOWER number = HIGHER priority (1 is the highest).
-//  Compile: g++ cpu_scheduler_console.cpp -o scheduler
+//  Compile: g++ -std=c++17 cpu_scheduler.cpp -o scheduler
 // ============================================================================
 
 #include <algorithm>
@@ -229,16 +229,16 @@ static int readInt(const string& prompt, int lo, int hi) {
         }
         s = s.substr(b, e - b + 1);
         bool digitsOnly = all_of(s.begin(), s.end(), [](unsigned char c) { return isdigit(c); });
-        if (!digitsOnly || s.size() > 6) {
+        if (!digitsOnly || s.size() > 9) {
             cout << "  Invalid: enter a whole number (no letters, signs or decimals).\n";
             continue;
         }
-        int v = stoi(s);
-        if (v < lo || v > hi) {
+        long long rawVal = stoll(s);
+        if (rawVal < lo || rawVal > hi) {
             cout << "  Invalid: value must be between " << lo << " and " << hi << ".\n";
             continue;
         }
-        return v;
+        return static_cast<int>(rawVal);
     }
 }
 
@@ -348,7 +348,9 @@ static void printResult(const SimResult& r) {
     cout << fixed << setprecision(2);
     cout << "\nAverage Waiting Time    : " << r.avgWT << "\n";
     cout << "Average Turnaround Time : " << r.avgTAT << "\n";
-    cout << "CPU Utilization         : " << setprecision(1) << r.cpuUtil << "%\n";
+    cout << setprecision(1);
+    cout << "CPU Utilization         : " << r.cpuUtil << "%\n";
+    cout << setprecision(2);
 }
 
 static void compareAll(const vector<Process>& procs, int quantum) {
